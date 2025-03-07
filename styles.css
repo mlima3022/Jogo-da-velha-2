@@ -1,16 +1,35 @@
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
+    font-family: 'Arial', sans-serif;
+    background-color: #f4f4f9;
     display: flex;
     justify-content: center;
     align-items: center;
-    flex-direction: column;
     height: 100vh;
     margin: 0;
+    color: #333;
 }
 
 .container {
     text-align: center;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+    color: #444;
+}
+
+#scoreboard {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+
+#scoreboard span {
+    font-weight: bold;
 }
 
 #mode-selection {
@@ -18,15 +37,16 @@ body {
 }
 
 #mode-selection label {
-    font-size: 18px;
+    font-size: 1rem;
     cursor: pointer;
 }
 
 .big-board {
     display: grid;
-    grid-template-columns: repeat(3, 150px);
-    grid-template-rows: repeat(3, 150px);
+    grid-template-columns: repeat(3, 100px);
+    grid-template-rows: repeat(3, 100px);
     gap: 5px;
+    margin: 20px auto;
 }
 
 .small-board {
@@ -34,35 +54,57 @@ body {
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
     gap: 2px;
-    border: 2px solid #333;
-    background-color: #fff;
+    border: 2px solid #ccc;
+    background-color: #f9f9f9;
 }
 
 .small-board.active {
-    border: 4px solid #ffcc00; /* Destaque para o tabuleiro ativo */
+    border: 4px solid #ffcc00;
 }
 
 .cell {
-    width: 48px;
-    height: 48px;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    font-size: 20px;
     font-weight: bold;
     background-color: #ddd;
     cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.cell:hover {
+    background-color: #ccc;
 }
 
 .cell.X {
-    color: red;
+    color: #ff4d4d;
 }
 
 .cell.O {
-    color: blue;
+    color: #4d94ff;
 }
 
 #message {
     font-weight: bold;
     margin-top: 20px;
+    font-size: 1.2rem;
+}
+
+#new-game {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    background-color: #4d94ff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#new-game:hover {
+    background-color: #3d7dd1;
 }

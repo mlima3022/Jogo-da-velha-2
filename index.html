@@ -9,6 +9,9 @@
 <body>
     <div class="container">
         <h1>Jogo da Velha 2</h1>
+        <div id="scoreboard">
+            <p>Vitórias: <span id="score-x">0</span> (X) vs <span id="score-o">0</span> (O)</p>
+        </div>
         <div id="mode-selection">
             <label>
                 <input type="checkbox" id="bot-mode"> Jogar contra o Bot
@@ -17,6 +20,7 @@
         <p>Jogador atual: <span id="current-player">X</span></p>
         <div id="big-board" class="big-board"></div>
         <p id="message"></p>
+        <button id="new-game">Novo Jogo</button>
     </div>
     <script src="script.js"></script>
 </body>
