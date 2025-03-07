@@ -1,3 +1,5 @@
+const socket = io('http://localhost:3000'); // Conecta ao servidor Socket.IO
+
 const bigBoard = document.getElementById('big-board');
 const currentPlayerDisplay = document.getElementById('current-player');
 const message = document.getElementById('message');
@@ -6,13 +8,9 @@ const newGameButton = document.getElementById('new-game');
 const scoreX = document.getElementById('score-x');
 const scoreO = document.getElementById('score-o');
 
-let currentPlayer = 'X';
-let nextBoardRow = null;
-let nextBoardCol = null;
-let bigBoardState = Array.from({ length: 3 }, () => Array(3).fill(null));
-let isBotMode = false;
-let winsX = 0;
-let winsO = 0;
+let currentPlayerRole = null; // Papel do jogador (X ou O)
+let gameState = null; // Estado atual do jogo
+let isBotMode = false; // Modo bot (opcional)
 
 // Atualiza o modo do bot
 botModeCheckbox.addEventListener('change', () => {
@@ -21,7 +19,9 @@ botModeCheckbox.addEventListener('change', () => {
 });
 
 // Novo jogo
-newGameButton.addEventListener('click', resetGame);
+newGameButton.addEventListener('click', () => {
+    socket.emit('restartGame');
+});
 
 // Cria o tabuleiro grande
 function createBigBoard() {
@@ -113,9 +113,9 @@ function checkBigBoardWinner() {
     for (const combination of winningCombinations) {
         const [a, b, c] = combination;
         if (
-            bigBoardState[Math.floor(a / 3)][a % 3] &&
-            bigBoardState[Math.floor(a / 3)][a % 3] === bigBoardState[Math.floor(b / 3)][b % 3] &&
-            bigBoardState[Math.floor(a / 3)][a % 3] === bigBoardState[Math.floor(c / 3)][c % 3]
+            gameState.board[Math.floor(a / 3)][a % 3] &&
+            gameState.board[Math.floor(a / 3)][a % 3] === gameState.board[Math.floor(b / 3)][b % 3] &&
+            gameState.board[Math.floor(a / 3)][a % 3] === gameState.board[Math.floor(c / 3)][c % 3]
         ) {
             return true; // Há um vencedor
         }
@@ -137,8 +137,8 @@ function updateActiveBoards() {
         const row = parseInt(board.dataset.row);
         const col = parseInt(board.dataset.col);
         if (
-            (nextBoardRow === null || (nextBoardRow === row && nextBoardCol === col)) &&
-            bigBoardState[row][col] === null
+            (gameState.nextBoardRow === null || (gameState.nextBoardRow === row && gameState.nextBoardCol === col)) &&
+            gameState.board[row][col] === null
         ) {
             board.classList.add('active');
         } else {
@@ -149,56 +149,84 @@ function updateActiveBoards() {
 
 // Função para lidar com o clique em uma célula
 function handleCellClick(cell, smallBoard) {
-    if (isBotMode && currentPlayer === 'O') return; // Impede o jogador de clicar no turno do bot
+    if (!gameState) {
+        console.error("Estado do jogo não foi inicializado.");
+        return;
+    }
+
+    if (isBotMode && currentPlayerRole === 'O') return; // Impede o jogador de clicar no turno do bot
 
     const boardRow = parseInt(smallBoard.dataset.row);
     const boardCol = parseInt(smallBoard.dataset.col);
     const cellRow = parseInt(cell.dataset.row);
     const cellCol = parseInt(cell.dataset.col);
 
-    if (!cell.textContent && (nextBoardRow === null || (nextBoardRow === boardRow && nextBoardCol === boardCol))) {
-        cell.textContent = currentPlayer;
-        cell.classList.add(currentPlayer);
+    console.log("Célula clicada:", { row: boardRow, col: boardCol, cellRow, cellCol });
 
-        // Verifica se há um vencedor no tabuleiro menor
-        if (checkSmallBoardWinner(smallBoard)) {
-            bigBoardState[boardRow][boardCol] = currentPlayer;
-            disableSmallBoard(smallBoard);
-            highlightWinner(smallBoard, currentPlayer);
+    if (!cell.textContent && (gameState.nextBoardRow === null || (gameState.nextBoardRow === boardRow && gameState.nextBoardCol === boardCol))) {
+        socket.emit('makeMove', { row: boardRow, col: boardCol, cellRow, cellCol });
+    } else {
+        console.log("Jogada inválida: célula já preenchida ou tabuleiro errado.");
+    }
+}
 
-            // Verifica se há um vencedor no tabuleiro grande
-            if (checkBigBoardWinner()) {
-                message.textContent = `Jogador ${currentPlayer} venceu o jogo!`;
-                updateScore(currentPlayer);
-                disableAllBoards();
-                return;
+// Recebe o estado do jogo do servidor
+socket.on('gameState', (state) => {
+    console.log("Estado do jogo recebido:", state);
+    gameState = state;
+    updateBoard(state.board);
+    currentPlayerDisplay.textContent = state.currentPlayer;
+    updateActiveBoards();
+
+    // Se for o turno do bot, faz a jogada após 1 segundo
+    if (isBotMode && currentPlayerRole === 'O' && state.currentPlayer === 'O') {
+        console.log("Bot está pensando...");
+        setTimeout(botMove, 1000); // Tempo reduzido para 1 segundo
+    }
+});
+
+// Recebe o papel do jogador (X ou O)
+socket.on('playerRole', (role) => {
+    currentPlayerRole = role;
+    message.textContent = `Você é o jogador ${role}`;
+});
+
+// Notifica que o jogo está cheio
+socket.on('gameFull', () => {
+    message.textContent = 'O jogo está cheio. Tente novamente mais tarde.';
+});
+
+// Notifica que um jogador desconectou
+socket.on('playerDisconnected', (playerId) => {
+    message.textContent = 'O outro jogador desconectou. O jogo será reiniciado.';
+    setTimeout(() => location.reload(), 3000); // Recarrega a página após 3 segundos
+});
+
+// Atualiza o tabuleiro com base no estado do jogo
+function updateBoard(board) {
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            const smallBoard = document.querySelector(`.small-board[data-row="${row}"][data-col="${col}"]`);
+            if (smallBoard) {
+                const cells = smallBoard.querySelectorAll('.cell');
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        const cell = cells[i * 3 + j];
+                        // Verifica se board[row][col] e board[row][col][i] existem
+                        if (board[row] && board[row][col] && board[row][col][i]) {
+                            cell.textContent = board[row][col][i][j] || '';
+                            cell.classList.remove('X', 'O');
+                            if (board[row][col][i][j]) {
+                                cell.classList.add(board[row][col][i][j]);
+                            }
+                        } else {
+                            // Se não existir, define como vazio
+                            cell.textContent = '';
+                            cell.classList.remove('X', 'O');
+                        }
+                    }
+                }
             }
-        } else if (isSmallBoardFull(smallBoard)) {
-            bigBoardState[boardRow][boardCol] = 'draw';
-        }
-
-        // Define o próximo tabuleiro com base na célula clicada
-        nextBoardRow = cellRow;
-        nextBoardCol = cellCol;
-
-        // Verifica se o próximo tabuleiro está completo ou inativo
-        const nextBoard = document.querySelector(`.small-board[data-row="${nextBoardRow}"][data-col="${nextBoardCol}"]`);
-        if (nextBoard && (bigBoardState[nextBoardRow][nextBoardCol] !== null || isSmallBoardFull(nextBoard))) {
-            nextBoardRow = null;
-            nextBoardCol = null;
-        }
-
-        // Alterna o jogador
-        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-        currentPlayerDisplay.textContent = currentPlayer;
-
-        // Atualiza o destaque dos tabuleiros ativos
-        updateActiveBoards();
-
-        // Se for o turno do bot, faz a jogada após 3 segundos
-        if (isBotMode && currentPlayer === 'O') {
-            console.log("Bot está pensando...");
-            setTimeout(botMove, 3000);
         }
     }
 }
@@ -209,19 +237,19 @@ function botMove() {
 
     // 1. Encontra todos os tabuleiros ativos
     let activeBoards = [];
-    if (nextBoardRow !== null && nextBoardCol !== null) {
+    if (gameState.nextBoardRow !== null && gameState.nextBoardCol !== null) {
         // Se houver um tabuleiro ativo específico, usa apenas ele
         const targetBoard = document.querySelector(
-            `.small-board[data-row="${nextBoardRow}"][data-col="${nextBoardCol}"]`
+            `.small-board[data-row="${gameState.nextBoardRow}"][data-col="${gameState.nextBoardCol}"]`
         );
         activeBoards = [targetBoard];
-        console.log(`Tabuleiro ativo: [${nextBoardRow}, ${nextBoardCol}]`);
+        console.log(`Tabuleiro ativo: [${gameState.nextBoardRow}, ${gameState.nextBoardCol}]`);
     } else {
         // Se não houver tabuleiro ativo específico, usa todos os tabuleiros disponíveis
         activeBoards = Array.from(document.querySelectorAll('.small-board')).filter(board => {
             const row = parseInt(board.dataset.row);
             const col = parseInt(board.dataset.col);
-            return bigBoardState[row][col] === null && !isSmallBoardFull(board);
+            return gameState.board[row][col] === null && !isSmallBoardFull(board);
         });
         console.log("Bot escolheu entre todos os tabuleiros ativos.");
     }
@@ -328,68 +356,12 @@ function botMove() {
 
     // 3. Faz a jogada
     console.log(`Bot jogou na célula: [${bestCell.dataset.row}, ${bestCell.dataset.col}] do tabuleiro [${bestBoard.dataset.row}, ${bestBoard.dataset.col}]`);
-    bestCell.textContent = currentPlayer;
-    bestCell.classList.add(currentPlayer);
-
-    // Verifica se há um vencedor no tabuleiro menor
-    if (checkSmallBoardWinner(bestBoard)) {
-        const boardRow = parseInt(bestBoard.dataset.row);
-        const boardCol = parseInt(bestBoard.dataset.col);
-        bigBoardState[boardRow][boardCol] = currentPlayer;
-        disableSmallBoard(bestBoard);
-        highlightWinner(bestBoard, currentPlayer);
-
-        // Verifica se há um vencedor no tabuleiro grande
-        if (checkBigBoardWinner()) {
-            message.textContent = `Jogador ${currentPlayer} venceu o jogo!`;
-            updateScore(currentPlayer);
-            disableAllBoards();
-            return;
-        }
-    } else if (isSmallBoardFull(bestBoard)) {
-        const boardRow = parseInt(bestBoard.dataset.row);
-        const boardCol = parseInt(bestBoard.dataset.col);
-        bigBoardState[boardRow][boardCol] = 'draw';
-    }
-
-    // Define o próximo tabuleiro com base na célula clicada
-    nextBoardRow = parseInt(bestCell.dataset.row);
-    nextBoardCol = parseInt(bestCell.dataset.col);
-
-    // Verifica se o próximo tabuleiro está completo ou inativo
-    const nextBoard = document.querySelector(`.small-board[data-row="${nextBoardRow}"][data-col="${nextBoardCol}"]`);
-    if (nextBoard && (bigBoardState[nextBoardRow][nextBoardCol] !== null || isSmallBoardFull(nextBoard))) {
-        nextBoardRow = null;
-        nextBoardCol = null;
-    }
-
-    // Alterna o jogador
-    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-    currentPlayerDisplay.textContent = currentPlayer;
-
-    // Atualiza o destaque dos tabuleiros ativos
-    updateActiveBoards();
-}
-// Atualiza o placar
-function updateScore(winner) {
-    if (winner === 'X') {
-        winsX++;
-        scoreX.textContent = winsX;
-    } else if (winner === 'O') {
-        winsO++;
-        scoreO.textContent = winsO;
-    }
-}
-
-// Reinicia o jogo
-function resetGame() {
-    bigBoardState = Array.from({ length: 3 }, () => Array(3).fill(null));
-    currentPlayer = 'X';
-    nextBoardRow = null;
-    nextBoardCol = null;
-    message.textContent = '';
-    createBigBoard();
-    updateActiveBoards();
+    socket.emit('makeMove', {
+        row: parseInt(bestBoard.dataset.row),
+        col: parseInt(bestBoard.dataset.col),
+        cellRow: parseInt(bestCell.dataset.row),
+        cellCol: parseInt(bestCell.dataset.col),
+    });
 }
 
 // Inicia o jogo

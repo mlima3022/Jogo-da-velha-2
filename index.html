@@ -3,25 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jogo da Velha 2</title>
+    <title>Escolha o Modo de Jogo</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>Jogo da Velha 2</h1>
-        <div id="scoreboard">
-            <p>Vitórias: <span id="score-x">0</span> (X) vs <span id="score-o">0</span> (O)</p>
+        <h1>Jogo da Velha Online</h1>
+        <div class="menu">
+            <button onclick="window.location.href='multiplayer.html'">Jogar Multiplayer</button>
+            <button onclick="window.location.href='bot.html'">Jogar contra o Bot</button>
         </div>
-        <div id="mode-selection">
-            <label>
-                <input type="checkbox" id="bot-mode"> Jogar contra o Bot
-            </label>
-        </div>
-        <p>Jogador atual: <span id="current-player">X</span></p>
-        <div id="big-board" class="big-board"></div>
-        <p id="message"></p>
-        <button id="new-game">Novo Jogo</button>
     </div>
-    <script src="script.js"></script>
 </body>
 </html>
